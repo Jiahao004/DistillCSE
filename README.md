@@ -1,4 +1,4 @@
-# DistillCSE: On Distillation for Contrastive Learning Sentence Embeddings
+# DistillCSE: Distilled Contrastive Learning for Sentence Embeddings
 
 This is the source code of DistilLCSE, which study the factors that affect the distillation learning for contrastive learning sentence embeddings. 
 
