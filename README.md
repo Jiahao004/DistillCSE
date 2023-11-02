@@ -1,15 +1,15 @@
 # DistillCSE: Distilled Contrastive Learning for Sentence Embeddings
 
-This is the source code of DistilLCSE, which study the factors that affect the distillation learning for contrastive learning sentence embeddings. 
+This is the source code of [DistilLCSE](https://arxiv.org/abs/2310.13499), which studies the factors that affect distillation learning for contrastive learning sentence embeddings. 
 
-We identify the high variance in the teacher's output logit distribution that significantly affect the students performance.
+We identify the high variance issue in the teacher's output logit distribution that causes overfitting issues for the student model.
 
-We propose Group-P shuffling and multiple teacher components to regulate the high variance issue from teachers. Specifically,
+We propose two methods, Group-P shuffling and multiple teacher components, as a regulation to prevent overfitting. Specifically,
 
-1) Group-P Shuffling: shuffles the top-k logits from teachers. Here, k controls the reliance on teacher's information, larger k reduce while smaller k increase the reliance on teacher logits.
-2) Teacher Components: mean pooling the logits from multiple teacher components, therefore, the variance is reduced.
+1) Group-P Shuffling: shuffles the intra-group logits from teachers.
+2) Teacher Components: ensemble multiple teacher components.
 
-Distilling from homogeneous SimCSE:
+## Experimental Results
 
 | **Method** |**STS12** | **STS13** | **STS14** | **STS15** | **STS16** | **STS-B** | **SICK-R** | **Avg.** | 
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
