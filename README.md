@@ -1,6 +1,6 @@
 # DistillCSE: Distilled Contrastive Learning for Sentence Embeddings
 
-This is the source code of EMNLP2023 paper [DistillCSE](https://arxiv.org/abs/2310.13499), which studies the factors that affect distillation learning for contrastive learning sentence embeddings. 
+This is the source code of the EMNLP2023 paper [DistillCSE](https://arxiv.org/abs/2310.13499), which studies the factors that affect distillation learning for contrastive learning sentence embeddings. 
 
 We identify the high variance issue in the teacher's output logit distribution that causes overfitting issues for the student model.
 
@@ -9,7 +9,7 @@ We propose two methods, Group-P shuffling and multiple teacher components, as a 
 1) Group-P Shuffling: shuffles the intra-group logits from teachers.
 2) Teacher Components: ensemble multiple teacher components.
 
-We propose a iterative self-training framework for sentence embedding distillation
+We propose an iterative self-training framework for sentence embedding distillation
 
 ## Experimental Results
 
@@ -56,16 +56,18 @@ torch==1.10.2
 ## Run
 The running examples are in the .sh bash file.
 
---n_gpu_for_training: number of gpus for training the model, while the rest of the gpus are used for teacher logits inference
+--n_gpu_for_training: number of GPUs for training the model, while the rest of the GPUs are used for teacher logits inference
 
 --distill_weight: the weightage for distillation loss
 
---distill_teacher: the teachers for distillation logits, using whitespace to seperate the path of the teachers
+--distill_teacher: the teachers for distillation logits, using whitespace to separate the path of the teachers
 
---distil_temp1: the temperature for student in distillation
+--distil_temp1: the temperature for the student in distillation
 
---disitll_temp2: the temperature for teacher in distillation
+--disitll_temp2: the temperature for the teacher in distillation
 
---shuffle_start, --shuffle_end: shuffle the descending sorted logits between indices shuffle_start and shuffle_end while distillation, set --shuffle_start 0 and --shuffle_end 6 for default top-k shuffling regulation
+--shuffle_start, --shuffle_end: shuffle the descending sorted logits between indices shuffle_start and shuffle_end while distillation, set --shuffle_start 0 and --shuffle_end 6 will shuffle the logits between top0-6
+
+--group_size_by_prob: conduct group-p shuffling strategy while distillation
 
 --distill_alpha: the weight for base model logits when using both base and large models as teachers for distillation, the large model weight is (1-distill_alpha)
