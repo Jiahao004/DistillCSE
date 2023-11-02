@@ -13,6 +13,7 @@ We propose an iterative self-training framework for sentence embedding distillat
 
 ## Experimental Results
 
+Table for experimental results on standard STS benchmark. We conduct the base to base and large to large distillation only.
 | **Method** |**STS12** | **STS13** | **STS14** | **STS15** | **STS16** | **STS-B** | **SICK-R** | **Avg.** | 
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | GloVe embeddings (avg.) | 55.14 | 70.66 | 59.73 | 68.25 | 63.66 | 58.02 | 53.76 | 61.32 |
