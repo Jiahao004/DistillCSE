@@ -70,4 +70,4 @@ The running examples are in the .sh bash file.
 
 --group_size_by_prob: conduct group-p shuffling strategy while distillation
 
---distill_alpha: the weight for base model logits when using both base and large models as teachers for distillation, the large model weight is (1-distill_alpha)
+--distill_alpha: we also support the heterogeneous teacher distillation, e.g. distill_alpha is the weight for base model logits when using both base and large teachers for distillation
