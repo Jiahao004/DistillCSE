@@ -126,17 +126,18 @@ class ModelArguments:
     )
 
     ## distillation
-
-    distill_only: bool = field(
-        default=False,
-        metadata={"help":"if only apply distill loss without contrastive learning."}
+    distill_warmup_steps: int = field(
+        default=0,
+        metadata={"help":"Conduct distillation after $distill_warmup_steps steps"}
     )
+
     distill_teacher:str = field(
         default="princeton-nlp/unsup-simcse-bert-base-uncased",
         metadata={"help":"the teacher for distillation, should be paths of model seperated by single white space", "nargs":"*"}
     )
+    
     distill_weight: float = field(
-        default=0,
+        default=0.1,
         metadata={"help": "the distillation weight for SimCSE "}
     )
     distill_temp1: float = field(
@@ -147,40 +148,11 @@ class ModelArguments:
         default=0.0125,
         metadata={"help": "the distillation temperature for teacher"}
     )
-    shuffle_start:int=field(
-        default=None,
-    )
-    shuffle_end:int=field(
-        default=None,
-    )
+    
+    
     distill_func:str=field(
         default="ce",
         metadata={"help":"the distillation function, could be [ce, kl, js]"}
-    )
-    distill_alpha:float = field(
-        default=0.33,
-        metadata={"help":"the weightage for base model logits, and (1-alpha) is weight for large model logits"}
-    )
-
-    group_shuffling:bool=field(
-        default=False,
-        metadata={"help":"if shuffle the logits within groups"}
-    )
-    group_size: int = field(
-        default=None,
-        metadata={"help":"the size for each group"}
-    )
-    group_size_by_prob: float = field(
-        default=None,
-        metadata={"help":"split the group by teacher distribution probability (with temperature)"}
-    )
-    hard_rank_margin: float = field(
-        default=None,
-        metadata={"help":"tuning by ranking loss."}
-    )
-    n_hard_rank_samples: int = field(
-        default=None,
-        metadata={"help":"the number of hard samples per anchor"}
     )
 
 

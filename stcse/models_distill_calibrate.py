@@ -126,6 +126,7 @@ def cl_init(cls, config):
         cls.distill_mlp = MLPLayer(config)
     cls.sim = Similarity(temp=cls.model_args.temp)
     cls.init_weights()
+    cls.training_steps = 0
 
 
 def cl_forward(cls,
@@ -143,6 +144,7 @@ def cl_forward(cls,
     mlm_input_ids=None,
     mlm_labels=None,
     sim_t=None,
+    is_distilling=False,
 ):
     return_dict = return_dict if return_dict is not None else cls.config.use_return_dict
     batch_size = input_ids.size(0)
@@ -198,6 +200,7 @@ def cl_forward(cls,
     cos_sim = torch.cosine_similarity(z1.unsqueeze(1), z2.unsqueeze(0), dim=-1)
     labels = torch.arange(cos_sim.size(0)).long().to(cls.device)
     loss_fct = nn.CrossEntropyLoss()
+    
     if cls.model_args.distill_only:
         loss = 0
     else:
@@ -227,88 +230,15 @@ def cl_forward(cls,
     #     sim_t, sim_tt = sim_t[0], sim_t[1]
     sim_t = sim_t.fill_diagonal_(float("-inf"))
 
-    if  cls.model_args.hard_rank_margin is not None and cls.model_args.n_hard_rank_samples is not None:
-        ori_sim_t = sim_t.clone()
 
-        sim_t, idx = torch.sort(ori_sim_t, -1, descending=True)
-        hard_rank_margin = cls.model_args.hard_rank_margin
-
-        p_t = torch.softmax(sim_t[:, :-1], dim=-1) #(bs, bs-1)
-        p_t_diff = (p_t.unsqueeze(1) - p_t.unsqueeze(-1)).view(batch_size, -1) #(bs, (bs-1)*(bs-1))
-        p_diff_sampled = (torch.abs(p_t_diff) - hard_rank_margin) > 0
-        assert (p_diff_sampled.sum(dim=-1) > 0).sum()==batch_size
-        p_diff_sampled_density = p_diff_sampled / p_diff_sampled.sum(dim=-1, keepdims=True) #(bs, bs-1 x bs-1 )
-
-
-        sim_s = torch.gather(sim_s, -1, idx[:,:-1])
-        sim_s_diff = (sim_s.unsqueeze(1) - sim_s.unsqueeze(-1)).view(batch_size,-1)
-        sim_diff_sampled_idx = torch.multinomial(p_diff_sampled_density, cls.model_args.n_hard_rank_samples)
-        sim_t_diff_sampled = torch.gather(p_t_diff, -1, sim_diff_sampled_idx)
-        sign = torch.sign(sim_t_diff_sampled)
-
-        sim_s_diff_sampled = torch.gather(sim_s_diff, -1, sim_diff_sampled_idx)
-        # max(ap-an+m,0)
-        m=0.1
-        loss += cls.model_args.distill_weight * (
-            (torch.relu( m - sign*sim_s_diff_sampled )).mean()
-        )
-
-    else:
-        if cls.model_args.shuffle_start is not None and cls.model_args.shuffle_end is not None:
-            sim_t, idx = torch.sort(sim_t, -1, descending=True)
-            start, end = cls.model_args.shuffle_start, cls.model_args.shuffle_end
-            n_selected_samples = end - start
-            random_index = torch.stack(
-                [torch.randperm(n_selected_samples, device=idx.device) for _ in range(batch_size)], dim=0)
-            idx[:, start:end] = torch.gather(idx[:, start:end], -1, random_index)
-            sim_s = torch.gather(sim_s, -1, idx)
-        if cls.model_args.group_shuffling:
-            if cls.model_args.group_size is not None:
-                sim_t, idx = torch.sort(sim_t, -1, descending=True)
-                group_size = cls.model_args.group_size
-                n_groups = (batch_size - 1) // group_size
-
-                if (batch_size - 1) % group_size == 0:
-                    random_index = torch.stack(
-                        [torch.cat([torch.randperm(group_size) + g * group_size for g in range(n_groups)], dim=-1)
-                         for _ in range(batch_size)], dim=0).to(idx.device)
-                else:
-                    random_index = torch.stack(
-                        [torch.cat([torch.randperm(group_size) + g * group_size for g in range(n_groups)]
-                                   + [torch.randperm((batch_size - 1) % group_size) + group_size * n_groups], dim=-1)
-                         for _ in range(batch_size)], dim=0).to(idx.device)
-                idx[:, :-1] = torch.gather(idx[:, :-1], -1, random_index)
-                sim_s = torch.gather(sim_s, -1, idx)
-            elif cls.model_args.group_size_by_prob is not None:
-                ori_sim_t = sim_t.clone()
-                sim_t, idx = torch.sort(ori_sim_t, -1, descending=True)
-                p = torch.softmax(sim_t[:, :-1], dim=-1)  # exclude the -inf computing
-                cp = p.cumsum(dim=-1)
-                group_size_by_prob = cls.model_args.group_size_by_prob
-                n_groups = int(1 / group_size_by_prob)
-                if n_groups * group_size_by_prob < 1:
-                    n_groups += 1
-                cum_n_logits = torch.stack([(cp < (g + 1) * group_size_by_prob).sum(dim=-1) for g in range(n_groups)],
-                                           dim=-1)
-                cum_n_logits[:, -1] = batch_size - 1
-                cum_n_logits = torch.cat(
-                    [torch.zeros([batch_size, 1], device=cum_n_logits.device, dtype=torch.int), cum_n_logits], dim=-1)
-                random_index = torch.stack(
-                    [torch.cat(
-                        [torch.randperm(cum_n_logits[i, g + 1] - cum_n_logits[i, g]).to(cum_n_logits.device) +
-                         cum_n_logits[i, g] for g
-                         in range(n_groups)],
-                        dim=-1)
-                        for i in range(batch_size)], dim=0).to(idx.device)
-
-                idx[:, :-1] = torch.gather(idx[:, :-1], -1, random_index)
-                sim_s = torch.gather(sim_s, -1, idx)
-        ## distill loss
-        d_loss = distill_loss(
-            sim_s / cls.model_args.distill_temp1,
-            sim_t / cls.model_args.distill_temp2
-        )
-        loss += cls.model_args.distill_weight * d_loss
+    d_loss = distill_loss(
+        sim_s / cls.model_args.distill_temp1,
+        sim_t / cls.model_args.distill_temp2
+    )
+    
+    if cls.training_steps <= cls.model_args.distill_warmup_steps:
+        d_loss = 0
+    loss += cls.model_args.distill_weight * d_loss
 
 
 
@@ -332,6 +262,8 @@ def cl_forward(cls,
         attentions=outputs.attentions,
     )
     output["d_loss"] = d_loss
+    
+    cls.training_steps +=1
     return output
 
 
@@ -408,6 +340,7 @@ class BertForCL(BertPreTrainedModel):
         mlm_input_ids=None,
         mlm_labels=None,
         sim_t=None,
+        is_distilling=False
     ):
         if sent_emb:
             return sentemb_forward(self, self.bert,
@@ -437,6 +370,7 @@ class BertForCL(BertPreTrainedModel):
                 mlm_input_ids=mlm_input_ids,
                 mlm_labels=mlm_labels,
                 sim_t=sim_t,
+                is_distilling=is_distilling,
             )
 
 
@@ -469,6 +403,7 @@ class RobertaForCL(RobertaPreTrainedModel):
         mlm_input_ids=None,
         mlm_labels=None,
         sim_t=None,
+        is_distilling=False,
     ):
         if sent_emb:
             return sentemb_forward(self, self.roberta,
@@ -498,4 +433,5 @@ class RobertaForCL(RobertaPreTrainedModel):
                 mlm_input_ids=mlm_input_ids,
                 mlm_labels=mlm_labels,
                 sim_t=sim_t,
+                is_distilling=is_distilling
             )
